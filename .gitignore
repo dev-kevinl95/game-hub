@@ -31,7 +31,12 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
-.env*
+.env
+
+# database + uploaded media (keep your data and files out of the repo)
+/data/
+/public/games/
+/public/images/
 
 # vercel
 .vercel
