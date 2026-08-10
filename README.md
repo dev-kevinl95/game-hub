@@ -1,36 +1,85 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Portal de juegos HTML5
 
-## Getting Started
+Plataforma estilo Poki/CrazyGames construida con **Next.js 16 + TypeScript + SQLite**. Página pública con galería de juegos jugables (SEO-friendly) y un panel de administración privado para subir y gestionar juegos.
 
-First, run the development server:
+## Stack
+
+- **Next.js 16 (App Router)** — SSR/SSG para SEO, API routes para el backend
+- **TypeScript**
+- **better-sqlite3** — base de datos en un archivo (`data/games.db`)
+- **jsonwebtoken** — autenticación del panel admin (JWT)
+- **adm-zip** — descompresión de los juegos subidos en `.zip`
+- **CSS puro** — sin frameworks de estilos
+
+## Estructura
+
+```
+app/
+├── page.tsx              # Galería pública (SSR, revalida cada 60s)
+├── game/[id]/            # Página de juego (SSG + generateMetadata para SEO)
+│   ├── page.tsx
+│   └── GamePlayer.tsx    # iframe jugable + contador de partidas
+├── admin/page.tsx        # Panel de administración (client)
+└── api/
+    ├── games/            # GET lista de juegos
+    ├── games/[id]/       # GET detalle, POST incrementar partidas
+    └── admin/
+        ├── login/        # POST login (devuelve JWT)
+        ├── games/        # POST crear juego (multipart)
+        ├── games/[id]/   # PUT editar, DELETE borrar
+        └── categories/   # GET/POST categorías
+lib/
+├── db.ts                 # Conexión SQLite + esquema
+├── games.ts              # Capa de acceso a datos
+├── auth.ts               # JWT + login
+└── storage.ts            # Extracción de ZIPs, guardado de imágenes
+public/
+├── games/<uuid>/         # Juegos descomprimidos (servidos para el iframe)
+└── images/<id>/          # Miniaturas y banners
+data/games.db             # Base de datos (gitignored)
+```
+
+## Puesta en marcha
+
+1. Instalar dependencias:
+
+```bash
+npm install
+```
+
+2. Configurar las variables de entorno (copiar `.env.example` a `.env` y editar):
+
+```bash
+# .env
+ADMIN_PASSWORD=tu-contraseña-secreta
+JWT_SECRET=genera-uno-con-openssl-rand-hex-32
+```
+
+3. Arrancar en desarrollo:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+La web estará en `http://localhost:3000` y el panel admin en `/admin`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Subir un juego
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Entra en `/admin` con tu contraseña.
+2. En el formulario indica: título, categoría, descripción, etiquetas y una imagen de miniatura (opcional).
+3. Sube el juego como un **`.zip`**. El backend lo descomprime y sirve sus archivos automáticamente.
+4. Requisito del `.zip`: debe contener un `index.html` en la raíz o en una única subcarpeta (el caso típico de exportaciones de Unity/Construct/Godot).
 
-## Learn More
+## Panel de administración y seguridad
 
-To learn more about Next.js, take a look at the following resources:
+- La contraseña y la clave JWT viven **solo en el backend** (`.env`). Nunca se envían al navegador.
+- El login devuelve un token JWT de 7 días que se guarda en `localStorage` y se envía en cada petición admin.
+- Cualquier petición a `/api/admin/*` sin token válido devuelve `401`.
+- El panel permite: subir, editar (título, descripción, categoría, tags, destacado, imágenes) y borrar juegos, además de crear nuevas categorías.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Scripts
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `npm run dev` — servidor de desarrollo
+- `npm run build` — build de producción
+- `npm run start` — servidor de producción
+- `npm run lint` — ESLint
