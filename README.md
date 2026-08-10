@@ -63,6 +63,18 @@ npm run dev
 
 La web estará en `http://localhost:3000` y el panel admin en `/admin`.
 
+## Skills del proyecto
+
+El repositorio versiona sus skills en `.agents/skills/` (con `skills-lock.json` para fijar la versión) para que todo colaborador herede el mismo comportamiento.
+
+- **`git-commit`** — genera commits Conventional Commits a partir del diff. Se activa al pedir "haz un commit" / "commit".
+
+Los `SKILL.md` ya funcionan sin pasos extra al clonar. Para **sincronizar / actualizar** la versión fijada en `skills-lock.json`, instala el CLI y vuelve a agregar:
+
+```bash
+npx skills add https://github.com/github/awesome-copilot --skill git-commit
+```
+
 ## Subir un juego
 
 1. Entra en `/admin` con tu contraseña.

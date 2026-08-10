@@ -18,6 +18,10 @@ Portal de juegos HTML5 (Poki/CrazyGames clone): galería pública + panel admin.
 - `npm run build` / `npm run start` — producción
 - `npm run lint` — ESLint (único check; **no hay** scripts de typecheck ni de tests). Verifica con `npx tsc --noEmit` si cambias tipos.
 
+## Skills
+
+- Los skills del repo viven en `.agents/skills/` + `skills-lock.json` (versión fijada) y **sí se versionan**. Usa `git-commit` para crear commits Conventional Commits ("haz un commit"). Para actualizar: `npx skills add https://github.com/github/awesome-copilot --skill git-commit`.
+
 ## Arquitectura
 
 - **No es monorepo.** `app/` = páginas/API routes, `lib/` = capa de datos, `public/games/` + `public/images/` = media subida, `data/games.db` = SQLite.
