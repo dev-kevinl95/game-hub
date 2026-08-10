@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Bungee, Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
 
@@ -13,17 +13,26 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const bungee = Bungee({
+  weight: "400",
+  variable: "--font-display",
+  subsets: ["latin"],
+});
+
 export const metadata: Metadata = {
   title: {
-    default: "Juega gratis",
-    template: "%s | Juega gratis",
+    default: "Game Hub - Kevl95",
+    template: "%s | Game Hub",
   },
   description: "Juega a tus juegos HTML5 favoritos gratis en tu navegador.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="es" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html
+      lang="es"
+      className={`${geistSans.variable} ${geistMono.variable} ${bungee.variable}`}
+    >
       <body>
         <header className="app-header">
           <div className="header-inner">

@@ -1,14 +1,15 @@
 :root {
-  --bg: #09090b;
-  --bg-surface: #18181b;
-  --bg-elevated: #27272a;
-  --border: #3f3f46;
-  --border-soft: #27272a;
-  --text: #f4f4f5;
-  --text-muted: #a1a1aa;
-  --text-faint: #71717a;
-  --accent: #6366f1;
-  --accent-hover: #4f46e5;
+  --bg: #0e1116;
+  --bg-surface: #161a22;
+  --bg-elevated: #1e2430;
+  --border: #2e3644;
+  --border-soft: #242b37;
+  --text: #e8ecf2;
+  --text-muted: #9aa4b5;
+  --text-faint: #6b7586;
+  --accent: #7cea9c;
+  --accent-hover: #64d98a;
+  --amber: #ffb86b;
   --danger: #dc2626;
   --danger-hover: #ef4444;
   --danger-dim: #f87171;
@@ -113,7 +114,7 @@ select {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 3rem 1.5rem 2.5rem;
+  padding: 2.5rem 1.5rem 2rem;
   margin-bottom: 3rem;
   overflow: hidden;
   border-radius: var(--radius, 16px);
@@ -122,58 +123,58 @@ select {
   box-shadow: var(--shadow);
 }
 
-.profile::before,
-.profile::after {
+.profile::before {
   content: "";
   position: absolute;
-  border-radius: 50%;
-  filter: blur(60px);
-  opacity: 0.55;
+  width: 260px;
+  height: 260px;
+  left: -80px;
+  top: -120px;
+  background: radial-gradient(circle, var(--accent) 0%, transparent 60%);
+  opacity: 0.12;
+  filter: blur(40px);
   pointer-events: none;
   z-index: 0;
 }
 
-.profile::before {
-  width: 320px;
-  height: 320px;
-  left: -80px;
-  top: -120px;
-  background: var(--accent);
-  animation: blob-a 18s ease-in-out infinite;
+.profile-eyebrow {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 1.25rem;
+  font-family: var(--font-geist-sans, sans-serif);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
 }
 
-.profile::after {
-  width: 300px;
-  height: 300px;
-  right: -90px;
-  bottom: -130px;
-  background: #a855f7;
-  animation: blob-b 22s ease-in-out infinite;
+.profile-status {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 rgba(124, 234, 156, 0.6);
+  animation: status-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes status-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(124, 234, 156, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 7px rgba(124, 234, 156, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(124, 234, 156, 0);
+  }
 }
 
 .profile > * {
   position: relative;
   z-index: 1;
-}
-
-@keyframes blob-a {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(60px, 40px) scale(1.15);
-  }
-}
-
-@keyframes blob-b {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(-50px, -30px) scale(1.2);
-  }
 }
 
 .profile-avatar {
@@ -192,9 +193,10 @@ select {
 
 .profile-name {
   margin: 1rem 0 0;
+  font-family: var(--font-display);
+  font-weight: 400;
   font-size: 1.75rem;
-  font-weight: 800;
-  letter-spacing: -0.01em;
+  letter-spacing: 0.01em;
   color: #fff;
 }
 
@@ -232,8 +234,7 @@ select {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .profile::before,
-  .profile::after {
+  .profile-status {
     animation: none;
   }
 }
@@ -245,9 +246,11 @@ select {
 
 .hero-title {
   margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
   font-size: 2.25rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  letter-spacing: 0.01em;
+  line-height: 1.1;
   color: #fff;
 }
 
@@ -276,12 +279,13 @@ select {
   border-radius: var(--radius);
   border: 1px solid var(--border-soft);
   background: var(--bg-surface);
-  transition: transform 0.15s, border-color 0.15s;
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
 
 .game-card:hover {
   transform: translateY(-4px);
-  border-color: var(--border);
+  border-color: var(--accent);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
 }
 
 .game-card-cover {
@@ -334,8 +338,10 @@ select {
 }
 
 .game-card-meta {
-  margin: 0.25rem 0 0;
-  font-size: 0.75rem;
+  margin: 0.35rem 0 0;
+  font-family: var(--font-geist-mono, monospace);
+  font-size: 0.6875rem;
+  letter-spacing: 0.03em;
   color: var(--text-muted);
 }
 

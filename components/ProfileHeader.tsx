@@ -24,6 +24,10 @@ const socials = [
 export function ProfileHeader() {
   return (
     <header className="profile">
+      <p className="profile-eyebrow">
+        <span className="profile-status" aria-hidden="true" />
+        Game Hub
+      </p>
       <div className="profile-avatar">
         <Image
           src="/images/profile.jpg"
@@ -35,7 +39,7 @@ export function ProfileHeader() {
       </div>
       <h2 className="profile-name">Kevin Larico</h2>
       <p className="profile-description">
-        Desarrollo videojuegos y experiencias interactivas para Web, Mobile.
+        Desarrollo videojuegos y experiencias interactivas para Web y Mobile.
       </p>
       <div className="profile-links">
         {socials.map((social) => (

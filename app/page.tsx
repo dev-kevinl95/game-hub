@@ -14,14 +14,15 @@ export default function Home() {
       <ProfileHeader />
 
       <section className="hero">
-        <h1 className="hero-title">Game Hub</h1>
+        <h1 className="hero-title">Selecciona un juego</h1>
         <p className="hero-subtitle">
-          Juega a tus juegos favoritos directamente en tu navegador.
+          Elige un título y empieza a jugar al instante, sin descargas ni
+          instalaciones, desde tu navegador.
         </p>
       </section>
 
       {games.length === 0 ? (
-        <p className="empty">Todavía no hay juegos publicados.</p>
+        <p className="empty">Aún no hay juegos publicados. ¡Vuelve pronto para ver novedades!</p>
       ) : (
         <div className="games-grid">
           {games.map((game) => (
