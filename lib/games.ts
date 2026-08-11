@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { sb } from "./db";
 
 export type Category = {
   id: number;
@@ -39,36 +39,34 @@ function mapGame(row: GameRow): Game {
   return { ...row, tags: JSON.parse(row.tags || "[]") as string[] };
 }
 
-const selectColumns = `
-  id, title, description, category, tags, thumbnail_url,
-  banner_url, game_url, plays, rating, featured, created_at
-`;
-
-export function listGames(): Game[] {
-  const rows = db
-    .prepare(`SELECT ${selectColumns} FROM games ORDER BY featured DESC, created_at DESC`)
-    .all() as GameRow[];
-  return rows.map(mapGame);
+export async function listGames(): Promise<Game[]> {
+  const { data } = await sb
+    .from("games")
+    .select("*")
+    .order("featured", { ascending: false })
+    .order("created_at", { ascending: false });
+  return (data ?? []).map(mapGame);
 }
 
-export function getGame(id: number): Game | null {
-  const row = db.prepare(`SELECT ${selectColumns} FROM games WHERE id = ?`).get(id) as
-    | GameRow
-    | undefined;
-  return row ? mapGame(row) : null;
+export async function getGame(id: number): Promise<Game | null> {
+  const { data } = await sb
+    .from("games")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  return data ? mapGame(data) : null;
 }
 
-export function incrementPlays(id: number): void {
-  db.prepare("UPDATE games SET plays = plays + 1 WHERE id = ?").run(id);
+export async function incrementPlays(id: number): Promise<void> {
+  await sb.rpc("increment_plays", { game_id: id });
 }
 
-export function createGame(data: Omit<Game, "id" | "created_at" | "plays" | "rating">): Game {
-  const info = db
-    .prepare(
-      `INSERT INTO games (title, description, category, tags, thumbnail_url, banner_url, game_url, featured)
-       VALUES (@title, @description, @category, @tags, @thumbnail_url, @banner_url, @game_url, @featured)`
-    )
-    .run({
+export async function createGame(
+  data: Omit<Game, "id" | "created_at" | "plays" | "rating">
+): Promise<Game> {
+  const { data: row, error } = await sb
+    .from("games")
+    .insert({
       title: data.title,
       description: data.description,
       category: data.category,
@@ -77,36 +75,52 @@ export function createGame(data: Omit<Game, "id" | "created_at" | "plays" | "rat
       banner_url: data.banner_url,
       game_url: data.game_url,
       featured: data.featured,
-    });
-  return getGame(info.lastInsertRowid as number)!;
+    })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return mapGame(row);
 }
 
-export function updateGame(
+export async function updateGame(
   id: number,
-  data: Partial<Pick<Game, "title" | "description" | "category" | "tags" | "featured">>
-): Game | null {
-  const current = getGame(id);
+  data: Partial<
+    Pick<Game, "title" | "description" | "category" | "tags" | "featured">
+  >
+): Promise<Game | null> {
+  const current = await getGame(id);
   if (!current) return null;
 
-  db.prepare(
-    `UPDATE games SET title = @title, description = @description, category = @category,
-     tags = @tags, featured = @featured WHERE id = @id`
-  ).run({
-    id,
-    title: data.title ?? current.title,
-    description: data.description ?? current.description,
-    category: data.category ?? current.category,
-    tags: JSON.stringify(data.tags ?? current.tags),
-    featured: data.featured ?? current.featured,
-  });
-  return getGame(id);
+  const { data: row, error } = await sb
+    .from("games")
+    .update({
+      title: data.title ?? current.title,
+      description: data.description ?? current.description,
+      category: data.category ?? current.category,
+      tags: JSON.stringify(data.tags ?? current.tags),
+      featured: data.featured ?? current.featured,
+    })
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return mapGame(row);
 }
 
-export function deleteGame(id: number): boolean {
-  const info = db.prepare("DELETE FROM games WHERE id = ?").run(id);
-  return info.changes > 0;
+export async function deleteGame(id: number): Promise<boolean> {
+  const { data, error } = await sb
+    .from("games")
+    .delete()
+    .eq("id", id)
+    .select("id");
+  if (error) throw error;
+  return Array.isArray(data) && data.length > 0;
 }
 
-export function listCategories(): Category[] {
-  return db.prepare("SELECT id, name FROM categories ORDER BY name").all() as Category[];
+export async function listCategories(): Promise<Category[]> {
+  const { data } = await sb
+    .from("categories")
+    .select("id, name")
+    .order("name");
+  return (data ?? []) as Category[];
 }

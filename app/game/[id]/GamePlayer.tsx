@@ -32,7 +32,12 @@ export function GamePlayer({
   }, [gameId]);
 
   const measureNative = useCallback(() => {
-    const doc = iframeRef.current?.contentDocument;
+    let doc: Document | null;
+    try {
+      doc = iframeRef.current?.contentDocument ?? null;
+    } catch {
+      doc = null;
+    }
     if (!doc?.documentElement) return;
     const de = doc.documentElement;
     const nw = de.scrollWidth || de.clientWidth;

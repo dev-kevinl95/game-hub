@@ -16,7 +16,7 @@ export async function PUT(
 
   const { id } = await ctx.params;
   const postId = Number(id);
-  const current = getPost(postId);
+  const current = await getPost(postId);
   if (!current) {
     return Response.json({ error: "Post no encontrado" }, { status: 404 });
   }
@@ -79,11 +79,11 @@ export async function PUT(
   if (gameId !== null && Number.isNaN(gameId)) {
     return Response.json({ error: "game_id inválido" }, { status: 400 });
   }
-  if (slug !== current.slug && slugExists(slug, current.id)) {
+  if (slug !== current.slug && (await slugExists(slug, current.id))) {
     return Response.json({ error: "El slug ya está en uso" }, { status: 409 });
   }
 
-  const post = updatePost(current.id, { slug, title, content, excerpt, game_id: gameId });
+  const post = await updatePost(current.id, { slug, title, content, excerpt, game_id: gameId });
 
   revalidatePath("/blog");
   revalidatePath(`/blog/${current.slug}`);
@@ -102,12 +102,12 @@ export async function DELETE(
   }
 
   const { id } = await ctx.params;
-  const current = getPost(Number(id));
+  const current = await getPost(Number(id));
   if (!current) {
     return Response.json({ error: "Post no encontrado" }, { status: 404 });
   }
 
-  deletePost(current.id);
+  await deletePost(current.id);
   revalidatePath("/blog");
   revalidatePath(`/blog/${current.slug}`);
   revalidatePath("/admin");

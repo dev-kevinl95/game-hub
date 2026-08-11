@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
 import { verifyToken } from "@/lib/auth";
 import { createGame } from "@/lib/games";
+import { sb } from "@/lib/db";
 import { storeGameZip, saveImage, UploadError } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const stored = await storeGameZip(gameFile);
-    const game = createGame({
+    const game = await createGame({
       title,
       description,
       category,
@@ -53,11 +54,11 @@ export async function POST(request: NextRequest) {
 
     const thumbnailUrl = await saveImage(game.id, "thumbnail", thumbnailFile);
     const bannerUrl = await saveImage(game.id, "banner", bannerFile);
-    if (thumbnailUrl || bannerUrl) {
-      const { db } = await import("@/lib/db");
-      db.prepare(
-        "UPDATE games SET thumbnail_url = COALESCE(?, thumbnail_url), banner_url = COALESCE(?, banner_url) WHERE id = ?"
-      ).run(thumbnailUrl, bannerUrl, game.id);
+    if (thumbnailUrl) {
+      await sb.from("games").update({ thumbnail_url: thumbnailUrl }).eq("id", game.id);
+    }
+    if (bannerUrl) {
+      await sb.from("games").update({ banner_url: bannerUrl }).eq("id", game.id);
     }
 
     revalidatePath("/");

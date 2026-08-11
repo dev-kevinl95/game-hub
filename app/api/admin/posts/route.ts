@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   if (!verifyToken(auth?.startsWith("Bearer ") ? auth.slice(7) : null)) {
     return Response.json({ error: "No autorizado" }, { status: 401 });
   }
-  return Response.json({ posts: listPosts() });
+  return Response.json({ posts: await listPosts() });
 }
 
 export async function POST(request: NextRequest) {
@@ -55,14 +55,14 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
-  if (slugExists(slug)) {
+  if (await slugExists(slug)) {
     return Response.json({ error: "El slug ya está en uso" }, { status: 409 });
   }
   if (Number.isNaN(game_id)) {
     return Response.json({ error: "game_id inválido" }, { status: 400 });
   }
 
-  const post = createPost({
+  const post = await createPost({
     slug,
     title,
     content,

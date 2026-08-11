@@ -8,7 +8,7 @@ export async function GET(
   { params }: RouteContext<"/api/games/[id]">
 ) {
   const { id } = await params;
-  const game = getGame(Number(id));
+  const game = await getGame(Number(id));
   if (!game) {
     return Response.json({ error: "Juego no encontrado" }, { status: 404 });
   }
@@ -21,9 +21,9 @@ export async function POST(
 ) {
   const { id } = await params;
   const numId = Number(id);
-  if (!getGame(numId)) {
+  if (!(await getGame(numId))) {
     return Response.json({ error: "Juego no encontrado" }, { status: 404 });
   }
-  incrementPlays(numId);
+  await incrementPlays(numId);
   return Response.json({ ok: true });
 }

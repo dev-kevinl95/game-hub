@@ -1,12 +1,11 @@
 import AdmZip from "adm-zip";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { sb } from "./db";
 
-const GAMES_DIR = path.join(process.cwd(), "public", "games");
-const IMAGES_DIR = path.join(process.cwd(), "public", "images");
-
-fs.mkdirSync(GAMES_DIR, { recursive: true });
-fs.mkdirSync(IMAGES_DIR, { recursive: true });
+const GAMES_BUCKET = "games";
+const IMAGES_BUCKET = "images";
 
 export class UploadError extends Error {}
 
@@ -19,8 +18,42 @@ const ALLOWED_IMAGE_TYPES = new Set([
 
 const ALLOWED_IMAGE_EXT = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif"]);
 
-async function readBuffer(file: File): Promise<Buffer> {
-  return Buffer.from(await file.arrayBuffer());
+const MIME_BY_EXT: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".htm": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".wasm": "application/wasm",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".gif": "image/gif",
+  ".svg": "image/svg+xml",
+  ".ico": "image/x-icon",
+  ".txt": "text/plain; charset=utf-8",
+  ".xml": "application/xml; charset=utf-8",
+  ".mp3": "audio/mpeg",
+  ".ogg": "audio/ogg",
+  ".wav": "audio/wav",
+  ".mp4": "video/mp4",
+  ".webm": "video/webm",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".ttf": "font/ttf",
+  ".glb": "model/gltf-binary",
+  ".gltf": "model/gltf+json",
+};
+
+function contentType(name: string): string {
+  return MIME_BY_EXT[path.extname(name).toLowerCase()] ?? "application/octet-stream";
+}
+
+function publicUrl(bucket: string, filePath: string): string {
+  const { data } = sb.storage.from(bucket).getPublicUrl(filePath);
+  return data.publicUrl;
 }
 
 function imageExtension(file: File): string {
@@ -35,24 +68,56 @@ function isAllowedImage(file: File): boolean {
   return ALLOWED_IMAGE_EXT.has(ext);
 }
 
-export async function saveImage(
-  gameId: number,
-  field: "thumbnail" | "banner",
-  file: File | null
-): Promise<string | null> {
-  if (!file || file.size === 0) return null;
-  if (!isAllowedImage(file)) {
-    throw new UploadError(
-      `El archivo ${field} debe ser JPG, PNG, WEBP o GIF`
-    );
+async function uploadDir(root: string, prefix: string): Promise<void> {
+  const entries = fs.readdirSync(root, { withFileTypes: true });
+  for (const entry of entries) {
+    const full = path.join(root, entry.name);
+    if (entry.isDirectory()) {
+      await uploadDir(full, `${prefix}/${entry.name}`);
+    } else if (entry.isFile()) {
+      const objectPath = `${prefix}/${entry.name}`;
+      const { error } = await sb.storage
+        .from(GAMES_BUCKET)
+        .upload(objectPath, fs.readFileSync(full), {
+          contentType: contentType(entry.name),
+          upsert: false,
+        });
+      if (error) {
+        throw new UploadError(`No se pudo subir ${objectPath}: ${error.message}`);
+      }
+    }
   }
+}
 
-  const dir = path.join(IMAGES_DIR, String(gameId));
-  fs.mkdirSync(dir, { recursive: true });
-  const ext = imageExtension(file);
-  const filename = `${field}${ext}`;
-  fs.writeFileSync(path.join(dir, filename), await readBuffer(file));
-  return `/images/${gameId}/${filename}`;
+async function listAllObjects(bucket: string, prefix: string): Promise<string[]> {
+  const objects: string[] = [];
+  let offset = 0;
+  for (;;) {
+    const { data, error } = await sb.storage
+      .from(bucket)
+      .list(prefix, { limit: 200, offset });
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    for (const item of data) {
+      const itemPath = `${prefix}/${item.name}`;
+      if (item.id) {
+        objects.push(itemPath);
+      } else {
+        objects.push(...(await listAllObjects(bucket, itemPath)));
+      }
+    }
+    offset += data.length;
+  }
+  return objects;
+}
+
+async function removeAllObjects(bucket: string, prefix: string): Promise<void> {
+  const objects = await listAllObjects(bucket, prefix);
+  while (objects.length > 0) {
+    const batch = objects.splice(0, 100);
+    const { error } = await sb.storage.from(bucket).remove(batch);
+    if (error) throw error;
+  }
 }
 
 export async function storeGameZip(file: File): Promise<{
@@ -63,11 +128,9 @@ export async function storeGameZip(file: File): Promise<{
     throw new UploadError("El archivo del juego debe ser un .zip");
   }
 
-  const tempDir = path.join(GAMES_DIR, `.tmp-${crypto.randomUUID()}`);
-  fs.mkdirSync(tempDir, { recursive: true });
-
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "gamezip-"));
   try {
-    const zip = new AdmZip(await readBuffer(file));
+    const zip = new AdmZip(Buffer.from(await file.arrayBuffer()));
     zip.extractAllTo(tempDir, true);
   } catch (err) {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -85,14 +148,22 @@ export async function storeGameZip(file: File): Promise<{
   }
 
   const folderName = crypto.randomUUID();
-  const finalDir = path.join(GAMES_DIR, folderName);
-  fs.renameSync(gameRoot, finalDir);
-  if (gameRoot !== tempDir) {
+
+  try {
+    await uploadDir(gameRoot, folderName);
+  } catch (err) {
+    await removeAllObjects(GAMES_BUCKET, folderName).catch(() => {});
     fs.rmSync(tempDir, { recursive: true, force: true });
+    if (err instanceof UploadError) throw err;
+    throw new UploadError(
+      `No se pudieron subir los archivos del juego: ${(err as Error).message}`
+    );
   }
+
+  fs.rmSync(tempDir, { recursive: true, force: true });
   return {
     folderName,
-    gameUrl: `/games/${folderName}/index.html`,
+    gameUrl: publicUrl(GAMES_BUCKET, `${folderName}/index.html`),
   };
 }
 
@@ -107,21 +178,44 @@ function findGameRoot(dir: string): string | null {
   return null;
 }
 
-export function removeGameFolder(folderName: string): void {
-  const target = path.join(GAMES_DIR, folderName);
-  if (fs.existsSync(target)) {
-    fs.rmSync(target, { recursive: true, force: true });
+export async function saveImage(
+  gameId: number,
+  field: "thumbnail" | "banner",
+  file: File | null
+): Promise<string | null> {
+  if (!file || file.size === 0) return null;
+  if (!isAllowedImage(file)) {
+    throw new UploadError(
+      `El archivo ${field} debe ser JPG, PNG, WEBP o GIF`
+    );
   }
+
+  const ext = imageExtension(file);
+  const objectPath = `${gameId}/${field}${ext}`;
+  const { error } = await sb.storage
+    .from(IMAGES_BUCKET)
+    .upload(objectPath, Buffer.from(await file.arrayBuffer()), {
+      contentType: file.type || contentType(`${field}${ext}`),
+      upsert: true,
+    });
+  if (error) {
+    throw new UploadError(`No se pudo subir la imagen: ${error.message}`);
+  }
+  return publicUrl(IMAGES_BUCKET, objectPath);
 }
 
-export function removeGameImages(gameId: number): void {
-  const target = path.join(IMAGES_DIR, String(gameId));
-  if (fs.existsSync(target)) {
-    fs.rmSync(target, { recursive: true, force: true });
-  }
+export async function removeGameFolder(folderName: string): Promise<void> {
+  if (!folderName) return;
+  await removeAllObjects(GAMES_BUCKET, folderName);
+}
+
+export async function removeGameImages(gameId: number): Promise<void> {
+  await removeAllObjects(IMAGES_BUCKET, String(gameId));
 }
 
 export function folderNameFromUrl(gameUrl: string): string {
-  const match = gameUrl.match(/^\/games\/([^/]+)\//);
+  const match =
+    gameUrl.match(/\/storage\/v1\/object\/public\/games\/([^/]+)\//) ||
+    gameUrl.match(/^\/games\/([^/]+)\//);
   return match ? match[1] : "";
 }

@@ -11,8 +11,8 @@ export const metadata: Metadata = {
     "El blog de Game Developer: descubre cómo fueron creados mis videojuegos, diseños y desarrollo.",
 };
 
-export default function BlogPage() {
-  const posts = listPostsWithGame();
+export default async function BlogPage() {
+  const posts = await listPostsWithGame();
 
   return (
     <div className="container">

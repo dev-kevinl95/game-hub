@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { sb } from "./db";
 import { getGame } from "./games";
 
 export type Post = {
@@ -26,54 +26,17 @@ type PostRow = {
   created_at: string;
 };
 
-const selectColumns = `
-  id, slug, title, content, excerpt, game_id, created_at
-`;
+type PostRowWithGame = PostRow & {
+  games: { title: string | null; thumbnail_url: string | null } | null;
+};
+
+const selectColumns = "id, slug, title, content, excerpt, game_id, created_at";
 
 function mapPost(row: PostRow): Post {
   return { ...row, game_id: row.game_id ?? null };
 }
 
-export function listPosts(): Post[] {
-  const rows = db
-    .prepare(`SELECT ${selectColumns} FROM posts ORDER BY created_at DESC`)
-    .all() as PostRow[];
-  return rows.map(mapPost);
-}
-
-export function listPostsWithGame(): PostWithGame[] {
-  const rows = db
-    .prepare(
-      `SELECT p.id, p.slug, p.title, p.content, p.excerpt, p.game_id, p.created_at,
-              g.title AS game_title, g.thumbnail_url AS game_thumbnail_url
-       FROM posts p
-       LEFT JOIN games g ON g.id = p.game_id
-       ORDER BY p.created_at DESC`
-    )
-    .all() as (PostRow & {
-    game_title: string | null;
-    game_thumbnail_url: string | null;
-  })[];
-  return rows.map((row) => ({
-    ...mapPost(row),
-    game_title: row.game_title ?? null,
-    game_thumbnail_url: row.game_thumbnail_url ?? null,
-  }));
-}
-
-export function getPostBySlug(slug: string): PostWithGame | null {
-  const row = db
-    .prepare(
-      `SELECT p.id, p.slug, p.title, p.content, p.excerpt, p.game_id, p.created_at,
-              g.title AS game_title, g.thumbnail_url AS game_thumbnail_url
-       FROM posts p
-       LEFT JOIN games g ON g.id = p.game_id
-       WHERE p.slug = ?`
-    )
-    .get(slug) as
-    | (PostRow & { game_title: string | null; game_thumbnail_url: string | null })
-    | undefined;
-  if (!row) return null;
+function mapPostWithGame(row: PostRow & { game_title: string | null; game_thumbnail_url: string | null }): PostWithGame {
   return {
     ...mapPost(row),
     game_title: row.game_title ?? null,
@@ -81,36 +44,76 @@ export function getPostBySlug(slug: string): PostWithGame | null {
   };
 }
 
-export function getPost(id: number): Post | null {
-  const row = db.prepare(`SELECT ${selectColumns} FROM posts WHERE id = ?`).get(id) as
-    | PostRow
-    | undefined;
+export async function listPosts(): Promise<Post[]> {
+  const { data } = await sb
+    .from("posts")
+    .select(selectColumns)
+    .order("created_at", { ascending: false });
+  return ((data ?? []) as PostRow[]).map(mapPost);
+}
+
+export async function listPostsWithGame(): Promise<PostWithGame[]> {
+  const { data } = await sb
+    .from("posts")
+    .select(selectColumns + ", games (title, thumbnail_url)")
+    .order("created_at", { ascending: false });
+  return ((data ?? []) as unknown as PostRowWithGame[]).map((row) =>
+    mapPostWithGame({
+      ...row,
+      game_title: row.games?.title ?? null,
+      game_thumbnail_url: row.games?.thumbnail_url ?? null,
+    })
+  );
+}
+
+export async function getPostBySlug(slug: string): Promise<PostWithGame | null> {
+  const { data } = await sb
+    .from("posts")
+    .select(selectColumns + ", games (title, thumbnail_url)")
+    .eq("slug", slug)
+    .maybeSingle();
+  const row = data as PostRowWithGame | null;
+  if (!row) return null;
+  return mapPostWithGame({
+    ...row,
+    game_title: row.games?.title ?? null,
+    game_thumbnail_url: row.games?.thumbnail_url ?? null,
+  });
+}
+
+export async function getPost(id: number): Promise<Post | null> {
+  const { data } = await sb
+    .from("posts")
+    .select(selectColumns)
+    .eq("id", id)
+    .maybeSingle();
+  const row = data as PostRow | null;
   return row ? mapPost(row) : null;
 }
 
-export function createPost(data: {
+export async function createPost(data: {
   slug: string;
   title: string;
   content: string;
   excerpt: string;
   game_id: number | null;
-}): Post {
-  const info = db
-    .prepare(
-      `INSERT INTO posts (slug, title, content, excerpt, game_id)
-       VALUES (@slug, @title, @content, @excerpt, @game_id)`
-    )
-    .run({
+}): Promise<Post> {
+  const { data: row, error } = await sb
+    .from("posts")
+    .insert({
       slug: data.slug,
       title: data.title,
       content: data.content,
       excerpt: data.excerpt,
       game_id: data.game_id,
-    });
-  return getPost(info.lastInsertRowid as number)!;
+    })
+    .select(selectColumns)
+    .single();
+  if (error) throw error;
+  return mapPost(row as PostRow);
 }
 
-export function updatePost(
+export async function updatePost(
   id: number,
   data: Partial<{
     slug: string;
@@ -119,43 +122,55 @@ export function updatePost(
     excerpt: string;
     game_id: number | null;
   }>
-): Post | null {
-  const current = getPost(id);
+): Promise<Post | null> {
+  const current = await getPost(id);
   if (!current) return null;
 
-  db.prepare(
-    `UPDATE posts SET slug = @slug, title = @title, content = @content,
-     excerpt = @excerpt, game_id = @game_id WHERE id = @id`
-  ).run({
-    id,
-    slug: data.slug ?? current.slug,
-    title: data.title ?? current.title,
-    content: data.content ?? current.content,
-    excerpt: data.excerpt ?? current.excerpt,
-    game_id: data.game_id ?? current.game_id,
-  });
-  return getPost(id);
+  const { data: row, error } = await sb
+    .from("posts")
+    .update({
+      slug: data.slug ?? current.slug,
+      title: data.title ?? current.title,
+      content: data.content ?? current.content,
+      excerpt: data.excerpt ?? current.excerpt,
+      game_id: data.game_id ?? current.game_id,
+    })
+    .eq("id", id)
+    .select(selectColumns)
+    .single();
+  if (error) throw error;
+  return mapPost(row as PostRow);
 }
 
-export function deletePost(id: number): boolean {
-  const info = db.prepare("DELETE FROM posts WHERE id = ?").run(id);
-  return info.changes > 0;
+export async function deletePost(id: number): Promise<boolean> {
+  const { data, error } = await sb
+    .from("posts")
+    .delete()
+    .eq("id", id)
+    .select("id");
+  if (error) throw error;
+  return Array.isArray(data) && data.length > 0;
 }
 
-export function slugExists(slug: string, excludeId?: number): boolean {
-  const row = db
-    .prepare("SELECT id FROM posts WHERE slug = ? AND id != ?")
-    .get(slug, excludeId ?? -1);
-  return Boolean(row);
+export async function slugExists(slug: string, excludeId?: number): Promise<boolean> {
+  let query = sb.from("posts").select("id").eq("slug", slug);
+  if (excludeId != null) {
+    query = query.neq("id", excludeId);
+  }
+  const { data } = await query.maybeSingle();
+  return Boolean(data);
 }
 
-export function getPostGame(post: Post): ReturnType<typeof getGame> {
+export async function getPostGame(post: Post): Promise<ReturnType<typeof getGame>> {
   if (post.game_id == null) return null;
   return getGame(post.game_id);
 }
 
 export function parsePostDate(createdAt: string): Date {
-  return new Date(createdAt.replace(" ", "T").replace("Z", "") + "Z");
+  if (createdAt.includes("T") || createdAt.includes("+")) {
+    return new Date(createdAt);
+  }
+  return new Date(createdAt.replace(" ", "T") + "Z");
 }
 
 export function formatPostDate(createdAt: string): string {

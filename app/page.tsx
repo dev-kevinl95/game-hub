@@ -6,8 +6,8 @@ import { listGames } from "@/lib/games";
 
 export const revalidate = 60;
 
-export default function Home() {
-  const games = listGames();
+export default async function Home() {
+  const games = await listGames();
 
   return (
     <div className="container">

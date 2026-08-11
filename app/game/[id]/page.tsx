@@ -6,15 +6,16 @@ import { listGames, getGame } from "@/lib/games";
 export const revalidate = 60;
 export const dynamicParams = true;
 
-export function generateStaticParams() {
-  return listGames().map((g) => ({ id: String(g.id) }));
+export async function generateStaticParams() {
+  const games = await listGames();
+  return games.map((g) => ({ id: String(g.id) }));
 }
 
 export async function generateMetadata({
   params,
 }: PageProps<"/game/[id]">): Promise<Metadata> {
   const { id } = await params;
-  const game = getGame(Number(id));
+  const game = await getGame(Number(id));
   if (!game) return {};
   return {
     title: game.title,
@@ -29,7 +30,7 @@ export async function generateMetadata({
 
 export default async function GamePage({ params }: PageProps<"/game/[id]">) {
   const { id } = await params;
-  const game = getGame(Number(id));
+  const game = await getGame(Number(id));
   if (!game) notFound();
 
   return (

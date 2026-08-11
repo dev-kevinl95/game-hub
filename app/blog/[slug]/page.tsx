@@ -8,15 +8,16 @@ import { listPosts, getPostBySlug, formatPostDate } from "@/lib/posts";
 export const revalidate = 60;
 export const dynamicParams = true;
 
-export function generateStaticParams() {
-  return listPosts().map((p) => ({ slug: p.slug }));
+export async function generateStaticParams() {
+  const posts = await listPosts();
+  return posts.map((p) => ({ slug: p.slug }));
 }
 
 export async function generateMetadata({
   params,
 }: PageProps<"/blog/[slug]">): Promise<Metadata> {
   const { slug } = await params;
-  const post = getPostBySlug(slug);
+  const post = await getPostBySlug(slug);
   if (!post) return {};
   return {
     title: post.title,
@@ -31,7 +32,7 @@ export async function generateMetadata({
 
 export default async function BlogPostPage({ params }: PageProps<"/blog/[slug]">) {
   const { slug } = await params;
-  const post = getPostBySlug(slug);
+  const post = await getPostBySlug(slug);
   if (!post) notFound();
 
   const gameUrl = post.game_id != null ? `/game/${post.game_id}` : null;

@@ -2,11 +2,12 @@ import { NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
 import { verifyToken } from "@/lib/auth";
 import { getGame, updateGame, deleteGame } from "@/lib/games";
-import { db } from "@/lib/db";
+import { sb } from "@/lib/db";
 import {
   storeGameZip,
   saveImage,
   removeGameFolder,
+  removeGameImages,
   folderNameFromUrl,
   UploadError,
 } from "@/lib/storage";
@@ -24,7 +25,7 @@ export async function PUT(
 
   const { id } = await params;
   const numId = Number(id);
-  const current = getGame(numId);
+  const current = await getGame(numId);
   if (!current) {
     return Response.json({ error: "Juego no encontrado" }, { status: 404 });
   }
@@ -51,7 +52,7 @@ export async function PUT(
   const gameFile = form.get("game") as File | null;
 
   try {
-    updateGame(numId, {
+    await updateGame(numId, {
       title,
       description,
       category,
@@ -61,24 +62,19 @@ export async function PUT(
 
     if (gameFile && gameFile.size > 0) {
       const stored = await storeGameZip(gameFile);
-      removeGameFolder(folderNameFromUrl(current.game_url));
-      db.prepare("UPDATE games SET game_url = ? WHERE id = ?").run(
-        stored.gameUrl,
-        numId
-      );
+      await removeGameFolder(folderNameFromUrl(current.game_url));
+      await sb.from("games").update({ game_url: stored.gameUrl }).eq("id", numId);
     }
 
     const thumbnailFile = form.get("thumbnail") as File | null;
     const bannerFile = (form.get("banner") as File | null) ?? null;
-    if (thumbnailFile || bannerFile) {
-      if (thumbnailFile) {
-        const url = await saveImage(numId, "thumbnail", thumbnailFile);
-        if (url) db.prepare("UPDATE games SET thumbnail_url = ? WHERE id = ?").run(url, numId);
-      }
-      if (bannerFile) {
-        const url = await saveImage(numId, "banner", bannerFile);
-        if (url) db.prepare("UPDATE games SET banner_url = ? WHERE id = ?").run(url, numId);
-      }
+    if (thumbnailFile) {
+      const url = await saveImage(numId, "thumbnail", thumbnailFile);
+      if (url) await sb.from("games").update({ thumbnail_url: url }).eq("id", numId);
+    }
+    if (bannerFile) {
+      const url = await saveImage(numId, "banner", bannerFile);
+      if (url) await sb.from("games").update({ banner_url: url }).eq("id", numId);
     }
 
     revalidatePath("/");
@@ -105,18 +101,15 @@ export async function DELETE(
 
   const { id } = await params;
   const numId = Number(id);
-  const current = getGame(numId);
+  const current = await getGame(numId);
   if (!current) {
     return Response.json({ error: "Juego no encontrado" }, { status: 404 });
   }
 
-  const deleted = deleteGame(numId);
+  const deleted = await deleteGame(numId);
   if (deleted) {
-    const { removeGameFolder, removeGameImages, folderNameFromUrl } = await import(
-      "@/lib/storage"
-    );
-    removeGameFolder(folderNameFromUrl(current.game_url));
-    removeGameImages(numId);
+    await removeGameFolder(folderNameFromUrl(current.game_url));
+    await removeGameImages(numId);
   }
 
   revalidatePath("/");
