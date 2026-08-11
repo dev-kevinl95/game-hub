@@ -35,20 +35,24 @@ ON CONFLICT (name) DO NOTHING;
 CREATE OR REPLACE FUNCTION increment_plays(game_id integer)
 RETURNS void
 LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
 AS $$
 BEGIN
-  UPDATE games SET plays = plays + 1 WHERE id = game_id;
+  UPDATE public.games SET plays = plays + 1 WHERE id = game_id;
 END;
 $$;
 
 CREATE OR REPLACE FUNCTION sync_sequences()
 RETURNS void
 LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
 AS $$
 BEGIN
-  PERFORM setval(pg_get_serial_sequence('games', 'id'), GREATEST(COALESCE(MAX(id), 1), 1)) FROM games;
-  PERFORM setval(pg_get_serial_sequence('posts', 'id'), GREATEST(COALESCE(MAX(id), 1), 1)) FROM posts;
-  PERFORM setval(pg_get_serial_sequence('categories', 'id'), GREATEST(COALESCE(MAX(id), 1), 1)) FROM categories;
+  PERFORM setval(pg_get_serial_sequence('public.games', 'id'), GREATEST(COALESCE(MAX(id), 1), 1)) FROM public.games;
+  PERFORM setval(pg_get_serial_sequence('public.posts', 'id'), GREATEST(COALESCE(MAX(id), 1), 1)) FROM public.posts;
+  PERFORM setval(pg_get_serial_sequence('public.categories', 'id'), GREATEST(COALESCE(MAX(id), 1), 1)) FROM public.categories;
 END;
 $$;
 
