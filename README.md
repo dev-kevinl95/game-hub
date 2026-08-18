@@ -1,42 +1,56 @@
-# Portal de juegos HTML5
+# Game Hub — Mis juegos HTML5
 
-Plataforma estilo Poki/CrazyGames construida con **Next.js 16 + TypeScript + SQLite**. Página pública con galería de juegos jugables (SEO-friendly) y un panel de administración privado para subir y gestionar juegos.
+Página personal donde publico mis propios videojuegos HTML5 directamente en el navegador, con un poco de información sobre mí, un blog y un panel de administración privado para gestionarlo todo.
+
+## Qué encontrarás aquí
+
+- **Galería de mis juegos** — cada juego es una creación propia, jugable al instante desde el navegador, sin descargas ni instalaciones.
+- **Página de juego** — reproductor con pantalla completa y soporte móvil, descripción, etiquetas y contador de partidas.
+- **Sobre mí** — perfil con mis redes sociales (GitHub, LinkedIn y YouTube).
+- **Blog** — artículos sobre el desarrollo de mis juegos, escritos en Markdown.
+- **Panel de administración privado** — solo yo (el único admin) subo y gestiono los juegos y el contenido.
 
 ## Stack
 
 - **Next.js 16 (App Router)** — SSR/SSG para SEO, API routes para el backend
 - **TypeScript**
-- **better-sqlite3** — base de datos en un archivo (`data/games.db`)
+- **Supabase (PostgreSQL + Storage)** — base de datos y almacenamiento de juegos e imágenes
 - **jsonwebtoken** — autenticación del panel admin (JWT)
 - **adm-zip** — descompresión de los juegos subidos en `.zip`
+- **react-markdown + remark-gfm** — renderizado del blog
 - **CSS puro** — sin frameworks de estilos
 
 ## Estructura
 
 ```
 app/
-├── page.tsx              # Galería pública (SSR, revalida cada 60s)
+├── page.tsx              # Portada: perfil + galería pública (SSR, revalida 60s)
 ├── game/[id]/            # Página de juego (SSG + generateMetadata para SEO)
 │   ├── page.tsx
-│   └── GamePlayer.tsx    # iframe jugable + contador de partidas
-├── admin/page.tsx        # Panel de administración (client)
+│   └── GamePlayer.tsx    # Reproductor (iframe + contador de partidas + pantalla completa)
+├── blog/                 # Índice y detalle de artículos del blog
+├── admin/page.tsx        # Panel de administración (client, requiere JWT)
 └── api/
     ├── games/            # GET lista de juegos
     ├── games/[id]/       # GET detalle, POST incrementar partidas
+    ├── play/[folder]/    # GET proxy de archivos del juego (con Content-Type correcto)
     └── admin/
         ├── login/        # POST login (devuelve JWT)
+        ├── posts/        # GET/POST artículos de blog
+        ├── posts/[id]/   # PUT/DELETE artículos
         ├── games/        # POST crear juego (multipart)
         ├── games/[id]/   # PUT editar, DELETE borrar
         └── categories/   # GET/POST categorías
 lib/
-├── db.ts                 # Conexión SQLite + esquema
-├── games.ts              # Capa de acceso a datos
+├── db.ts                 # Cliente Supabase (solo server)
+├── games.ts              # Capa de acceso a datos de juegos
+├── posts.ts              # Capa de acceso a datos del blog
 ├── auth.ts               # JWT + login
-└── storage.ts            # Extracción de ZIPs, guardado de imágenes
-public/
-├── games/<uuid>/         # Juegos descomprimidos (servidos para el iframe)
-└── images/<id>/          # Miniaturas y banners
-data/games.db             # Base de datos (gitignored)
+└── storage.ts            # Extracción de ZIPs, subida a Supabase Storage y borrado
+components/
+├── AdminLink.tsx         # Link a Admin, solo visible si hay sesión
+├── ProfileHeader.tsx     # Perfil personal con redes sociales
+└── Faq.tsx               # Preguntas frecuentes
 ```
 
 ## Puesta en marcha
@@ -53,6 +67,8 @@ npm install
 # .env
 ADMIN_PASSWORD=tu-contraseña-secreta
 JWT_SECRET=genera-uno-con-openssl-rand-hex-32
+SUPABASE_URL=https://tu-ref.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=tu_service_role_key
 ```
 
 3. Arrancar en desarrollo:
@@ -61,33 +77,34 @@ JWT_SECRET=genera-uno-con-openssl-rand-hex-32
 npm run dev
 ```
 
-La web estará en `http://localhost:3000` y el panel admin en `/admin`.
+La web estará en `http://localhost:3000`.
 
-## Skills del proyecto
+## Supabase
 
-El repositorio versiona sus skills en `.agents/skills/` (con `skills-lock.json` para fijar la versión) para que todo colaborador herede el mismo comportamiento.
+- **Base de datos** — tablas y helpers de Postgres gestionados en tu proyecto de Supabase.
+- **Storage** — dos buckets públicos: `games` (los zips descomprimidos) y `images` (miniaturas y banners).
+- La `SUPABASE_SERVICE_ROLE_KEY` es sensible: solo se usa en el servidor.
 
-- **`git-commit`** — genera commits Conventional Commits a partir del diff. Se activa al pedir "haz un commit" / "commit".
+## Publicar un juego
 
-Los `SKILL.md` ya funcionan sin pasos extra al clonar. Para **sincronizar / actualizar** la versión fijada en `skills-lock.json`, instala el CLI y vuelve a agregar:
-
-```bash
-npx skills add https://github.com/github/awesome-copilot --skill git-commit
-```
-
-## Subir un juego
-
-1. Entra en `/admin` con tu contraseña.
+1. Entra en `/admin` con tu contraseña (el acceso al panel es privado).
 2. En el formulario indica: título, categoría, descripción, etiquetas y una imagen de miniatura (opcional).
-3. Sube el juego como un **`.zip`**. El backend lo descomprime y sirve sus archivos automáticamente.
+3. Sube el juego como un **`.zip`**. El backend lo descomprime y sube sus archivos a Supabase Storage.
 4. Requisito del `.zip`: debe contener un `index.html` en la raíz o en una única subcarpeta (el caso típico de exportaciones de Unity/Construct/Godot).
+
+## Blog
+
+- Escribe artículos en **Markdown** desde `/admin`.
+- Cada post puede asociarse a un juego para enlazarlo.
+- Las páginas del blog son estáticas con SEO (`generateStaticParams` + `generateMetadata`).
 
 ## Panel de administración y seguridad
 
 - La contraseña y la clave JWT viven **solo en el backend** (`.env`). Nunca se envían al navegador.
 - El login devuelve un token JWT de 7 días que se guarda en `localStorage` y se envía en cada petición admin.
 - Cualquier petición a `/api/admin/*` sin token válido devuelve `401`.
-- El panel permite: subir, editar (título, descripción, categoría, tags, destacado, imágenes) y borrar juegos, además de crear nuevas categorías.
+- El enlace "Admin" de la navegación solo aparece si hay sesión; el resto solo ve juegos y el blog.
+- El panel permite: subir, editar (título, descripción, categoría, tags, destacado, imágenes) y borrar juegos, gestionar categorías y publicar/editar/borrar artículos del blog.
 
 ## Scripts
 
