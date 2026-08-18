@@ -8,12 +8,12 @@ const RATIO = 16 / 9;
 
 export function GamePlayer({
   gameId,
-  gameUrl,
+  playUrl,
   thumbnail,
   title,
 }: {
   gameId: number;
-  gameUrl: string;
+  playUrl: string;
   thumbnail: string | null;
   title: string;
 }) {
@@ -21,6 +21,7 @@ export function GamePlayer({
   const [native, setNative] = useState(FALLBACK);
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const counted = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -30,6 +31,22 @@ export function GamePlayer({
     counted.current = true;
     fetch(`/api/games/${gameId}`, { method: "POST" }).catch(() => {});
   }, [gameId]);
+
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    } else if (el.requestFullscreen) {
+      el.requestFullscreen().catch(() => {});
+    }
+  }, []);
 
   const measureNative = useCallback(() => {
     let doc: Document | null;
@@ -97,21 +114,68 @@ export function GamePlayer({
       {loading && <div className="player-loading">Cargando juego...</div>}
       <iframe
         ref={iframeRef}
-        src={gameUrl}
+        src={playUrl}
         className="player-iframe"
         allow="fullscreen; autoplay"
         onLoad={() => {
           measureNative();
           setLoading(false);
         }}
-        style={{
-          width: native.w + "px",
-          height: native.h + "px",
-          transform: `scale(${scale})`,
-          top: offset.y + "px",
-          left: offset.x + "px",
-        }}
+        style={
+          isFullscreen
+            ? {
+                width: native.w + "px",
+                height: native.h + "px",
+                transform: "translate(-50%, -50%)",
+                top: "50%",
+                left: "50%",
+              }
+            : {
+                width: native.w + "px",
+                height: native.h + "px",
+                transform: `scale(${scale})`,
+                top: offset.y + "px",
+                left: offset.x + "px",
+              }
+        }
       />
+      <button
+        type="button"
+        onClick={toggleFullscreen}
+        className="player-fullscreen-btn"
+        aria-label={isFullscreen ? "Salir de pantalla completa" : "Ver en pantalla completa"}
+        title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
+      >
+        {isFullscreen ? (
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M9 9 4 4M4 9V4h5M15 9l5-5M20 9V4h-5M9 15l-5 5M4 15v5h5M15 15l5 5M20 15v-5h-5" />
+          </svg>
+        ) : (
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" />
+          </svg>
+        )}
+      </button>
     </div>
   );
 }

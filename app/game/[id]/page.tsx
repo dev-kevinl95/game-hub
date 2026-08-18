@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { GamePlayer } from "./GamePlayer";
 import { listGames, getGame } from "@/lib/games";
+import { folderNameFromUrl } from "@/lib/storage";
 
 export const revalidate = 60;
 export const dynamicParams = true;
@@ -35,17 +36,17 @@ export default async function GamePage({ params }: PageProps<"/game/[id]">) {
 
   return (
     <div className="page">
+      <GamePlayer
+        gameId={game.id}
+        playUrl={`/api/play/${folderNameFromUrl(game.game_url)}/index.html`}
+        thumbnail={game.thumbnail_url}
+        title={game.title}
+      />
       <h1 className="game-title">{game.title}</h1>
       <p className="game-meta">
         {game.category} · {game.plays.toLocaleString()} partidas
       </p>
 
-      <GamePlayer
-        gameId={game.id}
-        gameUrl={game.game_url}
-        thumbnail={game.thumbnail_url}
-        title={game.title}
-      />
 
       <div className="info-card">
         <h2>Descripción</h2>

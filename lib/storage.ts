@@ -47,7 +47,7 @@ const MIME_BY_EXT: Record<string, string> = {
   ".gltf": "model/gltf+json",
 };
 
-function contentType(name: string): string {
+export function contentType(name: string): string {
   return MIME_BY_EXT[path.extname(name).toLowerCase()] ?? "application/octet-stream";
 }
 
