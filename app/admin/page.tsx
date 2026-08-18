@@ -182,34 +182,77 @@ export default function AdminPage() {
     });
   }
 
+  async function uploadZipToStorage(
+    file: File,
+    authToken: string
+  ): Promise<string> {
+    const initRes = await fetch("/api/admin/uploads", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!initRes.ok) {
+      const data = await initRes.json().catch(() => ({}));
+      throw new Error(data.error ?? "Error al preparar la subida");
+    }
+    const { zipPath, uploadUrl } = await initRes.json();
+    if (!zipPath || !uploadUrl) {
+      throw new Error("Respuesta de subida inválida");
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", uploadUrl);
+      xhr.setRequestHeader("Content-Type", "application/zip");
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          setZipProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve();
+        } else {
+          reject(new Error("Fallo al subir el zip al almacenamiento"));
+        }
+      };
+      xhr.onerror = () => reject(new Error("Error de red al subir el zip"));
+      xhr.send(file);
+    });
+
+    return zipPath;
+  }
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setStatus(null);
     setError(null);
-
-    const form = new FormData();
-    form.append("title", title);
-    form.append("description", description);
-    form.append("category", category);
-    form.append("tags", tags);
-    form.append("featured", featured ? "on" : "off");
-    if (zipFile) form.append("game", zipFile);
-    if (thumbnail) form.append("thumbnail", thumbnail);
-    if (banner) form.append("banner", banner);
-
     const hasZip = !!zipFile;
-    if (hasZip) {
-      setZipUploading(true);
-      setZipProgress(0);
-    }
+
     try {
+      let zipPath = "";
+      if (hasZip && token) {
+        setZipUploading(true);
+        setZipProgress(0);
+        zipPath = await uploadZipToStorage(zipFile, token);
+      }
+
+      const form = new FormData();
+      form.append("title", title);
+      form.append("description", description);
+      form.append("category", category);
+      form.append("tags", tags);
+      form.append("featured", featured ? "on" : "off");
+      form.append("zipPath", zipPath);
+      if (thumbnail) form.append("thumbnail", thumbnail);
+      if (banner) form.append("banner", banner);
+
       const res = await xhrUpload(
         "POST",
         "/api/admin/games",
         form,
         token,
-        (pct) => setZipProgress(pct)
+        () => {}
       );
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -226,8 +269,8 @@ export default function AdminPage() {
       setThumbnail(null);
       setBanner(null);
       loadGames();
-    } catch {
-      setError("Error de red al subir el juego");
+    } catch (err) {
+      setError((err as Error).message || "Error de red al subir el juego");
     } finally {
       setBusy(false);
       if (hasZip) setZipUploading(false);
@@ -256,29 +299,32 @@ export default function AdminPage() {
     setBusy(true);
     setStatus(null);
     setError(null);
-
-    const form = new FormData();
-    form.append("title", editing.title);
-    form.append("description", editing.description);
-    form.append("category", editing.category);
-    form.append("tags", editing.tags);
-    form.append("featured", editing.featured ? "on" : "off");
-    if (editZipFile) form.append("game", editZipFile);
-    if (thumbnail) form.append("thumbnail", thumbnail);
-    if (banner) form.append("banner", banner);
-
     const hasZip = !!editZipFile;
-    if (hasZip) {
-      setZipUploading(true);
-      setZipProgress(0);
-    }
+
     try {
+      let zipPath = "";
+      if (hasZip && token) {
+        setZipUploading(true);
+        setZipProgress(0);
+        zipPath = await uploadZipToStorage(editZipFile, token);
+      }
+
+      const form = new FormData();
+      form.append("title", editing.title);
+      form.append("description", editing.description);
+      form.append("category", editing.category);
+      form.append("tags", editing.tags);
+      form.append("featured", editing.featured ? "on" : "off");
+      form.append("zipPath", zipPath);
+      if (thumbnail) form.append("thumbnail", thumbnail);
+      if (banner) form.append("banner", banner);
+
       const res = await xhrUpload(
         "PUT",
         `/api/admin/games/${editing.id}`,
         form,
         token,
-        (pct) => setZipProgress(pct)
+        () => {}
       );
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -291,8 +337,8 @@ export default function AdminPage() {
       setThumbnail(null);
       setBanner(null);
       loadGames();
-    } catch {
-      setError("Error de red al editar el juego");
+    } catch (err) {
+      setError((err as Error).message || "Error de red al editar el juego");
     } finally {
       setBusy(false);
       if (hasZip) setZipUploading(false);

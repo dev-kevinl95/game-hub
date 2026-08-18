@@ -4,7 +4,7 @@ import { verifyToken } from "@/lib/auth";
 import { getGame, updateGame, deleteGame } from "@/lib/games";
 import { sb } from "@/lib/db";
 import {
-  storeGameZip,
+  storeGameZipFromStorage,
   saveImage,
   removeGameFolder,
   removeGameImages,
@@ -13,6 +13,7 @@ import {
 } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 export async function PUT(
   request: NextRequest,
@@ -49,7 +50,7 @@ export async function PUT(
     return Response.json({ error: "El título es obligatorio" }, { status: 400 });
   }
 
-  const gameFile = form.get("game") as File | null;
+  const zipPath = (form.get("zipPath") as string)?.trim() ?? "";
 
   try {
     await updateGame(numId, {
@@ -60,8 +61,8 @@ export async function PUT(
       featured,
     });
 
-    if (gameFile && gameFile.size > 0) {
-      const stored = await storeGameZip(gameFile);
+    if (zipPath && zipPath.startsWith("zips/") && zipPath.endsWith(".zip")) {
+      const stored = await storeGameZipFromStorage(zipPath);
       await removeGameFolder(folderNameFromUrl(current.game_url));
       await sb.from("games").update({ game_url: stored.gameUrl }).eq("id", numId);
     }

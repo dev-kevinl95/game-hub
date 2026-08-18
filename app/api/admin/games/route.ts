@@ -3,9 +3,10 @@ import { revalidatePath } from "next/cache";
 import { verifyToken } from "@/lib/auth";
 import { createGame } from "@/lib/games";
 import { sb } from "@/lib/db";
-import { storeGameZip, saveImage, UploadError } from "@/lib/storage";
+import { storeGameZipFromStorage, saveImage, UploadError } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
   const auth = request.headers.get("authorization");
@@ -28,19 +29,22 @@ export async function POST(request: NextRequest) {
     .map((t) => t.trim())
     .filter(Boolean);
 
-  const gameFile = form.get("game") as File | null;
+  const zipPath = (form.get("zipPath") as string)?.trim() ?? "";
   const thumbnailFile = form.get("thumbnail") as File | null;
   const bannerFile = (form.get("banner") as File | null) ?? null;
 
   if (!title) {
     return Response.json({ error: "El título es obligatorio" }, { status: 400 });
   }
-  if (!gameFile || gameFile.size === 0) {
-    return Response.json({ error: "Debes subir el archivo .zip del juego" }, { status: 400 });
+  if (!zipPath || !zipPath.startsWith("zips/") || !zipPath.endsWith(".zip")) {
+    return Response.json(
+      { error: "Debes subir el archivo .zip del juego" },
+      { status: 400 }
+    );
   }
 
   try {
-    const stored = await storeGameZip(gameFile);
+    const stored = await storeGameZipFromStorage(zipPath);
     const game = await createGame({
       title,
       description,

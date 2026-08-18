@@ -120,20 +120,48 @@ async function removeAllObjects(bucket: string, prefix: string): Promise<void> {
   }
 }
 
-export async function storeGameZip(file: File): Promise<{
+const ZIPS_PREFIX = "zips";
+
+export async function createZipUpload(): Promise<{
+  zipPath: string;
+  uploadUrl: string;
+}> {
+  const folderName = crypto.randomUUID();
+  const objectPath = `${ZIPS_PREFIX}/${folderName}.zip`;
+  const { data, error } = await sb.storage
+    .from(GAMES_BUCKET)
+    .createSignedUploadUrl(objectPath, { upsert: false });
+  if (error || !data) {
+    throw new UploadError(`No se pudo crear la URL de subida: ${error?.message}`);
+  }
+  return { zipPath: objectPath, uploadUrl: data.signedUrl };
+}
+
+async function removeZipUpload(zipPath: string): Promise<void> {
+  const { error } = await sb.storage.from(GAMES_BUCKET).remove([zipPath]);
+  if (error) {
+    console.error(`No se pudo limpiar el zip temporal ${zipPath}:`, error.message);
+  }
+}
+
+export async function storeGameZipFromStorage(zipPath: string): Promise<{
   folderName: string;
   gameUrl: string;
 }> {
-  if (!file.name.toLowerCase().endsWith(".zip")) {
-    throw new UploadError("El archivo del juego debe ser un .zip");
+  const { data: blob, error } = await sb.storage
+    .from(GAMES_BUCKET)
+    .download(zipPath);
+  if (error || !blob) {
+    throw new UploadError(`No se pudo leer el zip desde el almacenamiento`);
   }
 
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "gamezip-"));
   try {
-    const zip = new AdmZip(Buffer.from(await file.arrayBuffer()));
+    const zip = new AdmZip(Buffer.from(await blob.arrayBuffer()));
     zip.extractAllTo(tempDir, true);
   } catch (err) {
     fs.rmSync(tempDir, { recursive: true, force: true });
+    await removeZipUpload(zipPath);
     throw new UploadError(
       `No se pudo descomprimir el zip: ${(err as Error).message}`
     );
@@ -142,18 +170,22 @@ export async function storeGameZip(file: File): Promise<{
   const gameRoot = findGameRoot(tempDir);
   if (!gameRoot) {
     fs.rmSync(tempDir, { recursive: true, force: true });
+    await removeZipUpload(zipPath);
     throw new UploadError(
       "El zip no contiene un archivo index.html en su raíz"
     );
   }
 
-  const folderName = crypto.randomUUID();
+  const folderName = zipPath
+    .replace(new RegExp(`^${ZIPS_PREFIX}/`), "")
+    .replace(/\.zip$/, "");
 
   try {
     await uploadDir(gameRoot, folderName);
   } catch (err) {
     await removeAllObjects(GAMES_BUCKET, folderName).catch(() => {});
     fs.rmSync(tempDir, { recursive: true, force: true });
+    await removeZipUpload(zipPath);
     if (err instanceof UploadError) throw err;
     throw new UploadError(
       `No se pudieron subir los archivos del juego: ${(err as Error).message}`
@@ -161,6 +193,7 @@ export async function storeGameZip(file: File): Promise<{
   }
 
   fs.rmSync(tempDir, { recursive: true, force: true });
+  await removeZipUpload(zipPath);
   return {
     folderName,
     gameUrl: publicUrl(GAMES_BUCKET, `${folderName}/index.html`),
