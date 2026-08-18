@@ -39,7 +39,7 @@ export function ProfileHeader() {
       </p>
       <div className="profile-avatar">
         <Image
-          src="/images/profile.jpg"
+          src="/profile.jpg"
           alt="Kevin Larico"
           fill
           sizes="120px"
